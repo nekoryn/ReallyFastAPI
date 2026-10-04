@@ -1,3 +1,4 @@
+use really_fast_api::error::AppResult;
 use really_fast_api::router::App;
 use really_fast_api::response::Res;
 use really_fast_api::request::Req;
@@ -10,14 +11,18 @@ struct GlobalTestMiddleware {
 }
 
 impl Middleware for GlobalTestMiddleware {
-    fn handle(&self, req: Req, next: Next<'static>) -> BoxFuture<'static, Res> {
+    fn handle(&self, req: Req, next: Next<'static, AppResult<Res>>) -> BoxFuture<'static, AppResult<Res>> {
         self.executed.store(true, Ordering::SeqCst);
 
         Box::pin(async move {
             let res = next(req).await;
-            let mut r = res;
-            r.headers.insert("X-Global-Middleware".to_string(), "active".to_string());
-            r
+            match res {
+                Ok(mut r) => {
+                    r.headers.insert("X-Global-Middleware".to_string(), "active".to_string());
+                    Ok(r)
+                }
+                Err(e) => Err(e),
+            }
         })
     }
 }
@@ -25,12 +30,16 @@ impl Middleware for GlobalTestMiddleware {
 struct LocalTestMiddleware;
 
 impl Middleware for LocalTestMiddleware {
-    fn handle(&self, req: Req, next: Next<'static>) -> BoxFuture<'static, Res> {
+    fn handle(&self, req: Req, next: Next<'static, AppResult<Res>>) -> BoxFuture<'static, AppResult<Res>> {
         Box::pin(async move {
             let res = next(req).await;
-            let mut r = res;
-            r.headers.insert("X-Local-Middleware".to_string(), "active".to_string());
-            r
+            match res {
+                Ok(mut r) => {
+                    r.headers.insert("X-Local-Middleware".to_string(), "active".to_string());
+                    Ok(r)
+                }
+                Err(e) => Err(e),
+            }
         })
     }
 }
@@ -46,12 +55,12 @@ async fn test_global_and_local_middlewares() {
     });
 
     app.get("/global-only", async |_req| {
-        Res::ok_200("Global only route")
-    });
+        Ok(Res::ok_200("Global only route"))
+    }).unwrap();
 
     app.get("/protected", async |_req| {
-        Res::ok_200("Protected route content")
-    }).middleware(LocalTestMiddleware);
+        Ok(Res::ok_200("Protected route content"))
+    }).unwrap().middleware(LocalTestMiddleware);
 
     let matched_global = app.get_router.at("/global-only");
     assert!(matched_global.is_ok(), "Маршрут /global-only должен находится");

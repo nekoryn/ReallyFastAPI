@@ -7,8 +7,9 @@ use hyper::http::Extensions;
 use crate::request::Req;
 use crate::response::Res;
 use crate::middleware::{Middleware};
+use crate::error::{AppError, AppResult};
 
-pub type RouteHandler = Arc<dyn Fn(Req) -> Pin<Box<dyn Future<Output = Res> + Send>> + Send + Sync>;
+pub type RouteHandler = Arc<dyn Fn(Req) -> Pin<Box<dyn Future<Output =AppResult<Res>> + Send>> + Send + Sync>;
 
 pub struct RouteEntry {
     pub handler: RouteHandler,
@@ -56,60 +57,87 @@ impl App {
         self.middlewares.push(Arc::new(middleware));
     }
 
-    pub fn get<F, Fut>(&mut self, path: &str, handler: F) -> RouteBuilder<'_>
+    pub fn get<F, Fut>(&mut self, path: &str, handler: F) -> AppResult<RouteBuilder<'_>>
     where
         F: Fn(Req) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Res> + Send + 'static,
+        Fut: Future<Output = AppResult<Res>> + Send + 'static,
     {
         let entry = RouteEntry {
             handler: Arc::new(move |req| Box::pin(handler(req))),
             middlewares: Vec::new(),
         };
-        self.get_router.insert(path.to_string(), entry).unwrap();
-        let inserted = self.get_router.at_mut(path).unwrap().value;
-        RouteBuilder { entry: inserted }
+        self.get_router
+            .insert(path.to_string(), entry)
+            .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid GET route '{}': {}", path, e)))?;
+
+        let inserted = self.get_router
+            .at_mut(path)
+            .map_err(|e| AppError::Internal(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+
+        Ok(RouteBuilder { entry: inserted.value })
     }
 
-    pub fn post<F, Fut>(&mut self, path: &str, handler: F) -> RouteBuilder<'_>
+    pub fn post<F, Fut>(&mut self, path: &str, handler: F) -> AppResult<RouteBuilder<'_>>
     where
         F: Fn(Req) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Res> + Send + 'static,
+        Fut: Future<Output = AppResult<Res>> + Send + 'static,
     {
         let entry = RouteEntry {
             handler: Arc::new(move |req| Box::pin(handler(req))),
             middlewares: Vec::new(),
         };
-        self.post_router.insert(path.to_string(), entry).unwrap();
-        let inserted = self.post_router.at_mut(path).unwrap().value;
-        RouteBuilder { entry: inserted }
+
+        self.post_router
+            .insert(path.to_string(), entry)
+            .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid POST route '{}': {}", path, e)))?;
+
+        let inserted = self.post_router
+            .at_mut(path)
+            .map_err(|e| AppError::Internal(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+
+        Ok(RouteBuilder { entry: inserted.value })
     }
 
-    pub fn put<F, Fut>(&mut self, path: &str, handler: F) -> RouteBuilder<'_>
+    pub fn put<F, Fut>(&mut self, path: &str, handler: F) -> AppResult<RouteBuilder<'_>>
     where
         F: Fn(Req) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Res> + Send + 'static,
+        Fut: Future<Output = AppResult<Res>> + Send + 'static,
     {
         let entry = RouteEntry {
             handler: Arc::new(move |req| Box::pin(handler(req))),
             middlewares: Vec::new(),
         };
-        self.put_router.insert(path.to_string(), entry).unwrap();
-        let inserted = self.put_router.at_mut(path).unwrap().value;
-        RouteBuilder { entry: inserted }
+
+        self.put_router
+            .insert(path.to_string(), entry)
+            .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid PUT route '{}': {}", path, e)))?;
+
+        let inserted = self.put_router
+            .at_mut(path)
+            .map_err(|e| AppError::RouteConflict(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+
+        Ok(RouteBuilder { entry: inserted.value })
 
     }
 
-    pub fn delete<F, Fut>(&mut self, path: &str, handler: F) -> RouteBuilder<'_>
+    pub fn delete<F, Fut>(&mut self, path: &str, handler: F) -> AppResult<RouteBuilder<'_>>
     where
         F: Fn(Req) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Res> + Send + 'static,
+        Fut: Future<Output = AppResult<Res>> + Send + 'static,
     {
         let entry = RouteEntry {
             handler: Arc::new(move |req| Box::pin(handler(req))),
             middlewares: Vec::new(),
         };
-        self.delete_router.insert(path.to_string(), entry).unwrap();
-        let inserted = self.delete_router.at_mut(path).unwrap().value;
-        RouteBuilder { entry: inserted}
+
+        self.delete_router
+            .insert(path.to_string(), entry)
+            .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid DELETE route '{}': {}", path, e)))?;
+
+        let inserted = self.delete_router
+            .at_mut(path)
+            .map_err(|e| AppError::RouteConflict(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+
+        Ok(RouteBuilder { entry: inserted.value})
     }
 }

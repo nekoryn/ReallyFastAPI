@@ -36,8 +36,8 @@ async fn stress_test_server_with_db() {
     app.manage(db_pool);
 
     app.get("/", async |_req| {
-        Res::ok_200("Hello root")
-    });
+        Ok(Res::ok_200("Hello root"))
+    }).unwrap();
 
     app.get("/user", |req| async move {
         let db = req.get::<PgPool>().expect("DB pool not found!");
@@ -46,8 +46,8 @@ async fn stress_test_server_with_db() {
             .await
             .unwrap_or(0);
 
-        Res::ok_200(&format!("Total users in DB: {}", count))
-    });
+        Ok(Res::ok_200(&format!("Total users in DB: {}", count)))
+    }).unwrap();
 
     app.post("/user", |req| async move {
         let db = req.get::<PgPool>().expect("DB pool not found");
@@ -57,8 +57,8 @@ async fn stress_test_server_with_db() {
             .execute(&db)
             .await;
 
-        Res::created_201(&format!("User created with body: {}", req.body))
-    });
+        Ok(Res::created_201(&format!("User created with body: {}", req.body)))
+    }).unwrap();
 
     app.put("/update/{id}", |req| async move {
         let db = req.get::<PgPool>().expect("DB pool not found");
@@ -72,8 +72,8 @@ async fn stress_test_server_with_db() {
             .execute(&db)
             .await;
         
-        Res::ok_200(&format!("User {} updated!", id))
-    });
+        Ok(Res::ok_200(&format!("User {} updated!", id)))
+    }).unwrap();
 
     app.delete("/user/{id}", |req| async move {
         let db = req.get::<PgPool>().expect("DB pool not found");
@@ -86,15 +86,15 @@ async fn stress_test_server_with_db() {
             .execute(&db)
             .await;
 
-        Res::ok_200(&format!("User {} deleted!", id))
-    });
+        Ok(Res::ok_200(&format!("User {} deleted!", id)))
+    }).unwrap();
 
     app.get("/users/{id}", async |req| {
         let unknown = "unknown".to_string();
         let id_val = req.params.get("id").unwrap_or(&unknown);
         let msg = format!("User ID: {}", id_val);
-        Res::ok_200(&msg)
-    });
+        Ok(Res::ok_200(&msg))
+    }).unwrap();
 
     tokio::spawn(async move {
         let _ = app.listen("127.0.0.1:8082").await;
@@ -129,10 +129,10 @@ async fn stress_test_server_with_db() {
                         .header("Content-Type", "application/json")
                         .body(r#"{"name":"Alex","age":20}"#)
                         .send().await,
-                3 => client_clone.put("http://127.0.0.1:8082/update/{1}")
+                3 => client_clone.put("http://127.0.0.1:8082/update/1")
                         .body("Update Data")
                         .send().await,
-                _ => client_clone.get("http://127.0.0.1:8082/users/42").send().await,
+                _ => client_clone.delete("http://127.0.0.1:8082/user/42").send().await,
             };
 
             matches!(res, Ok(r) if r.status().is_success())

@@ -86,7 +86,7 @@ async fn handle_hyper_request(
 
             let handler = route_entry.handler.clone();
 
-            let mut next: crate::middleware::Next<'static> = Box::new(move |req|{
+            let mut next: crate::middleware::Next<'static, crate::error::AppResult<Res>> = Box::new(move |req|{
                 let h = handler.clone();
                 Box::pin(async move {
                     (h)(req).await
@@ -104,7 +104,10 @@ async fn handle_hyper_request(
                     mw_clone.handle(req, current_next)
                 });
             }
-            next(custom_req).await
+            match next(custom_req).await {
+                Ok(res) => res,
+                Err(err) => err.into_response(),
+            }
         }
         Err(_) => Res::not_found_404("404 Not Found... :("),
     };
