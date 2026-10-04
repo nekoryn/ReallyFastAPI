@@ -1,6 +1,6 @@
 use really_fast_api::router::App;
 use really_fast_api::response::Res;
-use really_fast_api::error::{AppError, AppResult};
+use really_fast_api::error::{AppResult};
 use sqlx::PgPool;
 
 #[tokio::main]

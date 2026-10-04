@@ -64,6 +64,7 @@ async fn handle_hyper_request(
         "POST" => app.post_router.at(&path),
         "PUT" => app.put_router.at(&path),
         "DELETE" => app.delete_router.at(&path),
+        "OPTIONS" => app.options_router.at(&path),
         _ => Err(matchit::MatchError::NotFound),
     };
 

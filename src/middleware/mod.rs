@@ -1,3 +1,5 @@
+pub mod cors;
+pub use cors::CorsMiddleware;
 use std::future::Future;
 use std::pin::Pin;
 
