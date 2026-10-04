@@ -120,9 +120,16 @@ async fn handle_hyper_request(
         builder = builder.header(key, val);
     }
 
-    let response = builder
-        .body(Full::new(Bytes::from(custom_res.body)))
-        .unwrap();
+    let response = match builder.body(Full::new(Bytes::from(custom_res.body))) {
+        Ok(res) => res,
+        Err(err) => {
+            eprintln!("Failed to build HTTP response: {}", err);
+            Response::builder()
+                .status(500)
+                .body(Full::new(Bytes::from("Internal Server Error")))
+                .unwrap()
+        }
+    };
 
     Ok(response) // Исправлено Ok вместо OK
 }

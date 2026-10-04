@@ -67,7 +67,7 @@ impl App {
             .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid {} route '{}': {}", method_name, path, e)))?;
 
         let options_entry = RouteEntry {
-            handler: Arc::new(|_| Box::pin(async { Ok(Res::ok_200("")) })),
+            handler: Arc::new(|_| Box::pin(async { Ok(Res::no_content_204("")) })),
             middlewares: Vec::new(),
         };
         let _ = options_router.insert(path.to_string(), options_entry);

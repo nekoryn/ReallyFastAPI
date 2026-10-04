@@ -153,8 +153,9 @@ async fn stress_test_server_with_db() {
 
     let mut success_count = 0;
     for handle in handles {
-        let _ = handle.await;
-        success_count += 1; // упрощено для теста
+        if let Ok(true) = handle.await{
+            success_count += 1; 
+        }
     }
 
     let duration = start.elapsed();
