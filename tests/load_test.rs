@@ -102,7 +102,10 @@ async fn stress_test_server_with_db() {
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .http2_prior_knowledge()
+        .build()
+        .expect("Failed to build HTTP/2 client");
     let total_requests = 10_000;
     let concurrency_limit = 250;
     let semaphore = Arc::new(Semaphore::new(concurrency_limit));
