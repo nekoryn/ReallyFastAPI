@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
+use hyper_util::server::conn::auto;
 use tokio::net::TcpListener;
 use hyper::{Request, Response};
 use hyper::body::Incoming;
-use hyper_util::rt::TokioIo;
-use hyper::server::conn::http1;
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use http_body_util::Full;
 use http_body_util::BodyExt;
 use hyper::body::Bytes;
@@ -36,8 +36,8 @@ impl App {
                     }
                 });
 
-                // Передаем io и созданный service!
-                if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
+                let builder = auto::Builder::new(TokioExecutor::new());
+                if let Err(err) = builder.serve_connection(io, service).await {
                     eprintln!("Error serving connection: {:?}", err);
                 }
             });
