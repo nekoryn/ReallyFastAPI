@@ -1,0 +1,1 @@
+console.log("ReallyFastAPI frontend assets loaded successfully! ⚡");

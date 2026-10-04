@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy)]
@@ -127,6 +127,49 @@ impl Res {
             headers: HashMap::new(),
             body: body.into(),
         }.with_text_content_type()
+    }
+
+    pub fn html(body: impl Into<String>) -> Self {
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_string(), "text/html; charset=utf-8".to_string());
+        
+        Self {
+            status: StatusCode::OK,
+            headers,
+            body: body.into(),
+        }
+    }
+
+    pub fn text_404(body: impl Into<String>) -> Self {
+        Self::not_found_404(body)
+    }
+
+    pub fn file(file_path: &std::path::Path) -> Self {
+        if !file_path.exists() || !file_path.is_file() {
+            return Self::not_found_404("File not found");
+        }
+
+        let extension = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let mime_type = match extension {
+            "html" => "text/html; charset=utf-8",
+            "css" => "text/css; charset=utf-8",
+            "js" => "application/javascript; charset=utf-8",
+            "svg" => "image/svg+xml",
+            _ => "text/plain; charset=utf-8",
+        };
+
+        match std::fs::read_to_string(file_path) {
+            Ok(content) => {
+                let mut headers = HashMap::new();
+                headers.insert("Content-Type".to_string(), mime_type.to_string());
+                Self {
+                    status: StatusCode::OK,
+                    headers,
+                    body: content,
+                }
+            }
+            Err(_) => Self::internal_server_error_500("Error reading file"),
+        }
     }
 
     pub fn json<T: Serialize>(data: &T) -> Self {

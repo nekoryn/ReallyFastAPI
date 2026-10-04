@@ -1,33 +1,52 @@
-use really_fast_api::router::App;
-use really_fast_api::response::Res;
-use really_fast_api::request::Req;
+use really_fast_api::{App, Res, Req, Migrator, Config};
 use really_fast_api::error::AppResult;
 use really_fast_api::get;
-use sqlx::PgPool;
+use really_fast_api::models::user::User;
 
+#[get("/users")]
+async fn get_users(req: Req) -> AppResult<Res> {
+    let db = req.db();
+    let users: Vec<User> = sqlx::query_as("SELECT id, name, age FROM users")
+        .fetch_all(&db)
+        .await?;
 
-#[get("/")]
-async fn handle_root(_req: Req) -> AppResult<Res> {
-    Ok(Res::ok_200("Hello from ReallyFastAPI server! 🚀 Try /db-error"))
+    Ok(Res::json(&users))
 }
 
-#[get("/db-error")]
-async fn handle_db_error(req: Req) -> AppResult<Res> {
-    let db = req.get::<PgPool>().expect("DB pool not found");
+// Тестовый эндпоинт для проверки обеих таблиц
+#[get("/seed")]
+async fn seed_data(req: Req) -> AppResult<Res> {
+    let db = req.db();
 
-    let _val: (i64,) = sqlx::query_as("SELECT * FROM non_existent_table_12345")
-        .fetch_one(&db)
-        .await?; 
+    // 1. Вставляем пользователя
+    let user_row = sqlx::query_as::<_, User>(
+        "INSERT INTO users (name, age) VALUES ($1, $2) RETURNING id, name, age"
+    )
+    .bind("Alex")
+    .bind(20)
+    .fetch_one(&db)
+    .await?;
 
-    Ok(Res::ok_200("This won't be reached"))
+    // 2. Вставляем пост для этого пользователя
+    let _ = sqlx::query(
+        "INSERT INTO posts (user_id, title, body) VALUES ($1, $2, $3)"
+    )
+    .bind(user_row.id)
+    .bind("First Rust Post")
+    .bind("Building our own framework is awesome!")
+    .execute(&db)
+    .await?;
+
+    Ok(Res::ok_200(format!("Created user id {} and a post!", user_row.id)))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres@localhost:5432/postgres".to_string());
+    let cfg = Config::init();
+    let db_pool = cfg.connect_db().await;
 
-    let db_pool = PgPool::connect(&db_url).await.expect("Не удалось подключиться к PostgreSQL!");
+    // Автоматические миграции (накатит обе!)
+    Migrator::run(&db_pool).await?;
 
     let mut app = App::new();
     app.manage(db_pool);

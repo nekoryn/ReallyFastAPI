@@ -16,7 +16,34 @@ use crate::request::Req;
 use crate::response::Res;
 
 impl App {
+    pub fn publish_assets(&self) {
+    let public_css = std::path::Path::new("public/css");
+    let public_js = std::path::Path::new("public/js");
+
+    let _ = std::fs::create_dir_all(public_css);
+    let _ = std::fs::create_dir_all(public_js);
+
+    let target_css = public_css.join("app.css");
+    let res_css = std::path::Path::new("resources/css/app.css");
+    if res_css.exists() {
+        let _ = std::fs::copy(res_css, &target_css);
+    } else if !target_css.exists() {
+        let default_css = "body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }";
+        let _ = std::fs::write(&target_css, default_css);
+    }
+
+    let target_js = public_js.join("app.js");
+    let res_js = std::path::Path::new("resources/js/app.js");
+    if res_js.exists() {
+        let _ = std::fs::copy(res_js, &target_js);
+    } else {
+        let default_js = "console.log('🚀 ReallyFastAPI JavaScript loaded successfully!');";
+        let _ = std::fs::write(&target_js, default_js);
+    }
+}
+
     pub async fn listen(self, addr_str: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.publish_assets();
         let addr: SocketAddr = addr_str.parse()?;
         let listener = TcpListener::bind(addr).await?;
         println!("Success! Industrial server running at http://{}", addr);
@@ -53,7 +80,6 @@ async fn handle_hyper_request(
     let uri = req.uri().clone();
     let path = req.uri().path().to_string();
 
-    // Асинхронно собираем тело из тела запроса hyper
     let whole_body = req.collect().await.map(|b| b.to_bytes()).unwrap_or_default();
     let body_str = String::from_utf8_lossy(&whole_body).to_string();
 

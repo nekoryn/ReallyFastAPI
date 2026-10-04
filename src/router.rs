@@ -4,6 +4,7 @@ use std::future::Future;
 use std::sync::Arc;
 use hyper::http::Extensions;
 
+use crate::{BladeEngine, ViewEngine};
 use crate::request::Req;
 use crate::response::Res;
 use crate::middleware::{Middleware};
@@ -35,6 +36,7 @@ pub struct App {
     pub options_router: Router<RouteEntry>,
     pub middlewares: Vec<Arc<dyn Middleware>>,
     pub extensions: Extensions,
+    view_engine: Arc<dyn ViewEngine>,
 }
 
 impl App {
@@ -47,7 +49,12 @@ impl App {
             options_router: Router::new(),
             middlewares: Vec::new(),
             extensions: Extensions::new(),
+            view_engine: Arc::new(BladeEngine::new("resources/views")),
         }
+    }
+
+    pub fn set_view_engine(&mut self, engine: impl ViewEngine + 'static) {
+        self.view_engine = Arc::new(engine);
     }
 
     fn register_route(
@@ -66,11 +73,13 @@ impl App {
             .insert(path.to_string(), entry)
             .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid {} route '{}': {}", method_name, path, e)))?;
 
-        let options_entry = RouteEntry {
-            handler: Arc::new(|_| Box::pin(async { Ok(Res::no_content_204("")) })),
-            middlewares: Vec::new(),
-        };
-        let _ = options_router.insert(path.to_string(), options_entry);
+        if options_router.at(path).is_err() {
+            let options_entry = RouteEntry {
+                handler: Arc::new(|_| Box::pin(async { Ok(Res::no_content_204("")) })),
+                middlewares: Vec::new(),
+            };
+            let _ = options_router.insert(path.to_string(), options_entry);
+        }
 
         Ok(())
     }
@@ -141,7 +150,7 @@ impl App {
 
         let inserted = self.put_router
             .at_mut(path)
-            .map_err(|e| AppError::RouteConflict(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+            .map_err(|e| AppError::Internal(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
 
         Ok(RouteBuilder { entry: inserted.value })
 
@@ -162,7 +171,7 @@ impl App {
         )?;
         let inserted = self.delete_router
             .at_mut(path)
-            .map_err(|e| AppError::RouteConflict(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+            .map_err(|e| AppError::Internal(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
 
         Ok(RouteBuilder { entry: inserted.value})
     }
@@ -179,11 +188,11 @@ impl App {
 
         self.options_router
             .insert(path.to_string(), entry)
-            .map_err(|e| AppError::RouteConflict(format!("Duplicate or invalid OPTIONS route '{}': {}", path, e)))?;
+            .map_err(|e| AppError::Internal(format!("Duplicate or invalid OPTIONS route '{}': {}", path, e)))?;
 
         let inserted = self.options_router
             .at_mut(path)
-            .map_err(|e| AppError::RouteConflict(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
+            .map_err(|e| AppError::Internal(format!("Failed to retrieve inserted route '{}': {}", path, e)))?;
 
         Ok(RouteBuilder { entry: inserted.value })
     }

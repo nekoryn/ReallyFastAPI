@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use serde::de::DeserializeOwned;
 use hyper::{Uri, http};
+use sqlx::PgPool;
 
 pub struct Req {
     pub method: String,
@@ -14,6 +15,10 @@ pub struct Req {
 impl Req {
     pub fn get<T: Clone + Send + Sync + 'static>(&self) -> Option<T> {
         self.extensions.get::<T>().cloned()
+    }
+
+    pub fn db(&self) -> PgPool {
+        self.get::<PgPool>().expect("Database pool is not managed by App! Use app.manage(db_pool)")
     }
 
     pub fn json<T: DeserializeOwned>(&self) -> Result<T, serde_json::Error> {
