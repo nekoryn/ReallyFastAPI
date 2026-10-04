@@ -39,12 +39,22 @@ pub struct Res {
 }
 
 impl Res {
+    fn with_text_content_type(mut self) -> Self {
+        self.headers.insert("Content-Type".to_string(), "text/plain; charset=utf-8".to_string());
+        self
+    }
+
+    pub fn header(mut self, key: impl Into<String>, val: impl Into<String>) -> Self {
+        self.headers.insert(key.into(), val.into());
+        self
+    }
+
     pub fn ok_200(body: impl Into<String>) -> Self {
         Self {
             status: StatusCode::OK,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn created_201(body: impl Into<String>) -> Self {
@@ -52,7 +62,7 @@ impl Res {
             status: StatusCode::Created,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn no_content_204(body: impl Into<String>) -> Self {
@@ -60,7 +70,7 @@ impl Res {
             status: StatusCode::NoContent,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn bad_request_400(body: impl Into<String>) -> Self {
@@ -68,7 +78,7 @@ impl Res {
             status: StatusCode::BadRequest,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn unauthorized_401(body: impl Into<String>) -> Self {
@@ -76,7 +86,7 @@ impl Res {
             status: StatusCode::Unauthorized,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn forbidden_403(body: impl Into<String>) -> Self {
@@ -84,7 +94,7 @@ impl Res {
             status: StatusCode::Forbidden,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn not_found_404(body: impl Into<String>) -> Self {
@@ -92,7 +102,7 @@ impl Res {
             status: StatusCode::NotFound,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn conflict_409(body: impl Into<String>) -> Self {
@@ -100,7 +110,7 @@ impl Res {
             status: StatusCode::Conflict,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn unprocessable_entity_422(body: impl Into<String>) -> Self {
@@ -108,7 +118,7 @@ impl Res {
             status: StatusCode::UnprocessableEntity,
             headers: HashMap::new(),
             body: body.into(),
-        }
+        }.with_text_content_type()
     }
 
     pub fn internal_server_error_500(body: impl Into<String>) -> Self {
@@ -116,17 +126,7 @@ impl Res {
             status: StatusCode::InternalServerError,
             headers: HashMap::new(),
             body: body.into(),
-        }
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let res_txt = format!(
-            "HTTP/1.1 {}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", 
-            self.status.as_str(),
-            self.body.len(),
-            self.body
-        );
-        res_txt.into_bytes()
+        }.with_text_content_type()
     }
 
     pub fn json<T: Serialize>(data: &T) -> Self {
