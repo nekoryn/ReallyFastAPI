@@ -1,22 +1,30 @@
 use really_fast_api::router::App;
 use really_fast_api::response::Res;
+use really_fast_api::request::Req;
 use really_fast_api::error::{AppError, AppResult};
+use really_fast_api::get;
+
+#[get("/not-found-test")]
+async fn handle_not_found(_req: Req) -> AppResult<Res> {
+    Err(AppError::NotFound("Custom resource was not found".to_string()))
+}
+
+#[get("/bad-request-test")]
+async fn handle_bad_request(_req: Req) -> AppResult<Res> {
+    Err(AppError::BadRequest("Invalid query parameters provided".to_string()))
+}
+
+#[get("/internal-test")]
+async fn handle_internal(_req: Req) -> AppResult<Res> {
+    Err(AppError::Internal("Something broke internally".to_string()))
+}
 
 #[tokio::test]
 async fn test_error_propagation_and_response() {
     let mut app = App::new();
 
-    app.get("/not-found-test", async |_req| -> AppResult<Res> {
-        Err(AppError::NotFound("Custom resource was not found".to_string()))
-    }).unwrap();
-
-    app.get("/bad-request-test", async |_req| -> AppResult<Res> {
-        Err(AppError::BadRequest("Invalid query parameters provided".to_string()))
-    }).unwrap();
-
-    app.get("/internal-test", async |_req| -> AppResult<Res> {
-        Err(AppError::Internal("Something broke internally".to_string()))
-    }).unwrap();
+    // Автоматически регистрируем все роуты, помеченные макросами в этом тесте
+    app.register_collected().unwrap();
 
     tokio::spawn(async move {
         let _ = app.listen("127.0.0.1:8083").await;

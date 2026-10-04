@@ -188,3 +188,37 @@ impl App {
         Ok(RouteBuilder { entry: inserted.value })
     }
 }
+
+pub struct RouteRegistration {
+    pub method: &'static str,
+    pub path: &'static str,
+    pub handler_fn: fn() -> RouteHandler,
+}
+
+inventory::collect!(RouteRegistration);
+
+impl App {
+    /// Единый метод для автоматической регистрации всех роутов, помеченных макросами
+    pub fn register_collected(&mut self) -> AppResult<()> {
+        for reg in inventory::iter::<RouteRegistration>() {
+            let (router, method_name) = match reg.method {
+                "GET" => (&mut self.get_router, "GET"),
+                "POST" => (&mut self.post_router, "POST"),
+                "PUT" => (&mut self.put_router, "PUT"),
+                "DELETE" => (&mut self.delete_router, "DELETE"),
+                _ => continue,
+            };
+
+            let handler = (reg.handler_fn)();
+
+            Self::register_route(
+                router,
+                &mut self.options_router,
+                reg.path,
+                handler,
+                method_name,
+            )?;
+        }
+        Ok(())
+    }
+}

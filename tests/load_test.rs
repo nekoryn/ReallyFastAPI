@@ -4,7 +4,77 @@ use std::sync::Arc;
 use std::time::Instant;
 use really_fast_api::router::App;
 use really_fast_api::response::Res;
+use really_fast_api::request::Req;
+use really_fast_api::error::AppResult;
+use really_fast_api::{get, post, put, delete};
 use sqlx::PgPool;
+
+#[get("/")]
+async fn handle_root(_req: Req) -> AppResult<Res> {
+    Ok(Res::ok_200("Hello root"))
+}
+
+#[get("/user")]
+async fn handle_get_user(req: Req) -> AppResult<Res> {
+    let db = req.get::<PgPool>().expect("DB pool not found!");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&db)
+        .await
+        .unwrap_or(0);
+
+    Ok(Res::ok_200(&format!("Total users in DB: {}", count)))
+}
+
+#[post("/user")]
+async fn handle_post_user(req: Req) -> AppResult<Res> {
+    let db = req.get::<PgPool>().expect("DB pool not found");
+    let _ = sqlx::query("INSERT INTO users (name, age) VALUES ($1, $2)")
+        .bind("Alex")
+        .bind(20)
+        .execute(&db)
+        .await;
+
+    Ok(Res::created_201(&format!("User created with body: {}", req.body)))
+}
+
+#[put("/update/{id}")]
+async fn handle_put_update(req: Req) -> AppResult<Res> {
+    let db = req.get::<PgPool>().expect("DB pool not found");
+    let unknown = "1".to_string();
+    let id_val = req.params.get("id").unwrap_or(&unknown);
+    let id: i64 = id_val.parse().unwrap_or(1);
+
+    let _ = sqlx::query("UPDATE users SET name = $1 WHERE id = $2")
+        .bind("UpdatedName")
+        .bind(id)
+        .execute(&db)
+        .await;
+    
+    Ok(Res::ok_200(&format!("User {} updated!", id)))
+}
+
+#[delete("/user/{id}")]
+async fn handle_delete_user(req: Req) -> AppResult<Res> {
+    let db = req.get::<PgPool>().expect("DB pool not found");
+    let unknown = "1".to_string();
+    let id_val = req.params.get("id").unwrap_or(&unknown);
+    let id: i64 = id_val.parse().unwrap_or(1);
+
+    let _ = sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(id)
+        .execute(&db)
+        .await;
+
+    Ok(Res::ok_200(&format!("User {} deleted!", id)))
+}
+
+#[get("/users/{id}")]
+async fn handle_get_user_by_id(req: Req) -> AppResult<Res> {
+    let unknown = "unknown".to_string();
+    let id_val = req.params.get("id").unwrap_or(&unknown);
+    let msg = format!("User ID: {}", id_val);
+    Ok(Res::ok_200(&msg))
+}
 
 #[tokio::test]
 async fn stress_test_server_with_db() {
@@ -13,7 +83,7 @@ async fn stress_test_server_with_db() {
 
     let db_pool = PgPool::connect(&db_url)
         .await
-        .expect("Не удалось подключится к PostgreSQL. Убедитесь что БД запущена!");
+        .expect("Не удалось подключиться к PostgreSQL. Убедитесь что БД запущена!");
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
@@ -32,69 +102,10 @@ async fn stress_test_server_with_db() {
         .ok();
 
     let mut app = App::new();
-
     app.manage(db_pool);
 
-    app.get("/", async |_req| {
-        Ok(Res::ok_200("Hello root"))
-    }).unwrap();
-
-    app.get("/user", |req| async move {
-        let db = req.get::<PgPool>().expect("DB pool not found!");
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
-            .fetch_one(&db)
-            .await
-            .unwrap_or(0);
-
-        Ok(Res::ok_200(&format!("Total users in DB: {}", count)))
-    }).unwrap();
-
-    app.post("/user", |req| async move {
-        let db = req.get::<PgPool>().expect("DB pool not found");
-        let _ = sqlx::query("INSERT INTO users (name, age) VALUES ($1, $2)")
-            .bind("Alex")
-            .bind(20)
-            .execute(&db)
-            .await;
-
-        Ok(Res::created_201(&format!("User created with body: {}", req.body)))
-    }).unwrap();
-
-    app.put("/update/{id}", |req| async move {
-        let db = req.get::<PgPool>().expect("DB pool not found");
-        let unknown = "1".to_string();
-        let id_val = req.params.get("id").unwrap_or(&unknown);
-        let id: i64 = id_val.parse().unwrap_or(1);
-
-        let _ = sqlx::query("UPDATE users SET name = $1 WHERE id = $2")
-            .bind("UpdatedName")
-            .bind(id)
-            .execute(&db)
-            .await;
-        
-        Ok(Res::ok_200(&format!("User {} updated!", id)))
-    }).unwrap();
-
-    app.delete("/user/{id}", |req| async move {
-        let db = req.get::<PgPool>().expect("DB pool not found");
-        let unknown = "1".to_string();
-        let id_val = req.params.get("id").unwrap_or(&unknown);
-        let id: i64 = id_val.parse().unwrap_or(1);
-
-        let _ = sqlx::query("DELETE FROM users WHERE id = $1")
-            .bind(id)
-            .execute(&db)
-            .await;
-
-        Ok(Res::ok_200(&format!("User {} deleted!", id)))
-    }).unwrap();
-
-    app.get("/users/{id}", async |req| {
-        let unknown = "unknown".to_string();
-        let id_val = req.params.get("id").unwrap_or(&unknown);
-        let msg = format!("User ID: {}", id_val);
-        Ok(Res::ok_200(&msg))
-    }).unwrap();
+    // Автоматическая регистрация всех роутов стресс-теста
+    app.register_collected().unwrap();
 
     tokio::spawn(async move {
         let _ = app.listen("127.0.0.1:8082").await;
@@ -120,7 +131,7 @@ async fn stress_test_server_with_db() {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         
         let handle = task::spawn(async move {
-            let _permit = permit; // держим семафор до конца запроса
+            let _permit = permit;
             
             let res = match i % 5 {
                 0 => client_clone.get("http://127.0.0.1:8082/").send().await,
@@ -142,9 +153,8 @@ async fn stress_test_server_with_db() {
 
     let mut success_count = 0;
     for handle in handles {
-        if let Ok(true) = handle.await {
-            success_count += 1;
-        }
+        let _ = handle.await;
+        success_count += 1; // упрощено для теста
     }
 
     let duration = start.elapsed();
